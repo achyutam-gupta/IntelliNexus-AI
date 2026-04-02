@@ -27,4 +27,5 @@ Thumbs.db
 
 # Logs
 *.log
-npm-debug.log*
+# Browser MCP logs
+.playwright-mcp/

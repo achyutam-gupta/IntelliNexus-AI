@@ -12,7 +12,7 @@ export default defineConfig({
         secure: true,
         rewrite: (path) => path.replace(/^\/api\/jira/, ''),
         configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq, req) => {
+          proxy.on('proxyReq', (proxyReq) => {
             // Remove custom header so Jira doesn't see it
             proxyReq.removeHeader('x-target-url');
           });
