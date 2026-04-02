@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.tmp/
+tools/test_creds.py
+
+# Node / Vite
+ui/node_modules/
+ui/dist/
+ui/.env
+
+# Environment & secrets
+.env
+*.env.local
+*.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
