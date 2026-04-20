@@ -24,13 +24,27 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/jira/, ''),
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq) => {
-            // Remove custom header so Jira doesn't see it
             proxyReq.removeHeader('x-target-url');
           });
-          proxy.on('error', (err) => {
-            console.error('[Jira Proxy Error]', err.message);
-          });
         }
+      },
+      '/api/llm/groq': {
+        target: 'https://api.groq.com/openai/v1',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/llm\/groq/, '')
+      },
+      '/api/llm/nvidia': {
+        target: 'https://integrate.api.nvidia.com/v1',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/llm\/nvidia/, '')
+      },
+      '/api/llm/openai': {
+        target: 'https://api.openai.com/v1',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/llm\/openai/, '')
       }
     }
   }

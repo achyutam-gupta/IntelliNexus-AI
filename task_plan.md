@@ -1,7 +1,7 @@
 # Task Plan
 
 ## Goals
-- Create **IntelliPlan AI**, an intelligent test plan creator.
+- Create **IntelliNexus AI**, an intelligent test plan creator.
 - Dynamic connection UI to JIRA, ADO, X-Ray, etc. with a "Test Connection" functionality.
 - Dynamic LLM connections supporting GROQ, Ollama, etc.
 - Fetch user stories/requirements via Ticket ID + extra context.

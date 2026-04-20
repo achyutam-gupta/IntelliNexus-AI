@@ -7,7 +7,7 @@
     What this command does:
 
     --prefix ui: Tells npm to look for the package.json file inside the ui directory.
-    run dev: Starts the Vite development server, which hosts your "IntelliPlan AI" premium interface.
+    run dev: Starts the Vite development server, which hosts your "IntelliNexus AI" premium interface.
     Important Notes:
 
     Dependencies: If this is your first time running it or if you've added new features, you may need to install dependencies first by running:

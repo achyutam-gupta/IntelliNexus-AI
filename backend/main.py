@@ -14,7 +14,7 @@ from backend.api.v1.planning import router as planning_router
 from backend.api.v1.scenarios import router as scenarios_router
 from backend.api.v1.analyzer import router as analyzer_router
 
-app = FastAPI(title="IntelliPlan AI API", version="1.0.0")
+app = FastAPI(title="IntelliNexus AI API", version="1.0.0")
 
 app.include_router(requirements_router, prefix="/api/v1/requirements", tags=["Requirements"])
 app.include_router(planning_router, prefix="/api/v1/planning", tags=["Planning"])
@@ -31,7 +31,7 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {"message": "IntelliPlan AI API is live", "status": "operational"}
+    return {"message": "IntelliNexus AI API is live", "status": "operational"}
 
 @app.get("/health")
 async def health():

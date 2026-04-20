@@ -11,7 +11,7 @@ export async function testOllamaConnection(endpoint) {
 export async function testGroqConnection(apiKey, model) {
   if (!apiKey.trim()) return { ok: false, msg: 'Please enter a Groq API key first.' };
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const res = await fetch('/api/llm/groq/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 }),
@@ -43,7 +43,7 @@ export async function testGrokConnection(apiKey) {
 export async function testOpenAIConnection(apiKey, model) {
   if (!apiKey.trim()) return { ok: false, msg: 'Please enter an OpenAI API key first.' };
   try {
-    const res = await fetch('https://api.openai.com/v1/models', {
+    const res = await fetch('/api/llm/openai/models', {
       headers: { Authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(10000),
     });
@@ -79,5 +79,26 @@ export async function testJiraConnection(baseUrl, email, token) {
     return { ok: false, msg: `Jira responded with HTTP ${res.status}.` };
   } catch {
     return { ok: false, msg: 'Cannot reach Jira. Verify the Instance URL and your network.' };
+  }
+}
+
+export async function testNvidiaConnection(apiKey) {
+  if (!apiKey.trim()) return { ok: false, msg: 'Please enter an NVIDIA API key first.' };
+  try {
+    const res = await fetch('/api/llm/nvidia/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ 
+        model: 'mistralai/mistral-large-3-675b-instruct-2512', 
+        messages: [{ role: 'user', content: 'ping' }], 
+        max_tokens: 1 
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) return { ok: true, msg: 'Connected to NVIDIA NIM Cloud.' };
+    if (res.status === 401) return { ok: false, msg: 'Invalid NVIDIA API key.' };
+    return { ok: false, msg: `NVIDIA responded with status ${res.status}.` };
+  } catch {
+    return { ok: false, msg: 'Network error reaching NVIDIA API.' };
   }
 }

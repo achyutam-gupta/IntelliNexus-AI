@@ -3,7 +3,7 @@ import { Star } from "lucide-react";
 
 const testimonials = [
   {
-    quote: "IntelliPlan AI cut our test creation time by 80%. What used to take our QA team a week now takes hours.",
+    quote: "IntelliNexus AI cut our test creation time by 80%. What used to take our QA team a week now takes hours.",
     author: "Sarah Chen",
     role: "QA Lead, TechFlow",
     avatar: "SC",

@@ -1,6 +1,6 @@
-# IntelliPlan AI - Phased Release Strategy
+# IntelliNexus AI - Phased Release Strategy
 
-To ensure a stable and progressive rollout of the IntelliPlan AI platform, we need to implement a structured versioning system alongside a phased release approach. This ensures testing is robust, user feedback is integrated continuously, and new features are added without breaking existing workflows.
+To ensure a stable and progressive rollout of the IntelliNexus AI platform, we need to implement a structured versioning system alongside a phased release approach. This ensures testing is robust, user feedback is integrated continuously, and new features are added without breaking existing workflows.
 
 ## 1. Versioning System: Semantic Versioning (SemVer)
 

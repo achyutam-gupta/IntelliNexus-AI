@@ -1,4 +1,4 @@
-# IntelliPlan AI: System Design & Architecture
+# IntelliNexus AI: System Design & Architecture
 
 ## 1. Vision
 Build the "Cursor for QA" — a unified platform for the entire Software Testing Lifecycle (STLC), replacing fragmented tools with an AI-orchestrated environment.
@@ -36,7 +36,7 @@ The system follows a **Modular Monolith** approach (transitionable to microservi
 
 ## 5. Directory Structure
 ```text
-IntelliPlan-AI/
+IntelliNexus-AI/
 ├── architecture/      # Technical SOPs and Design Docs
 ├── backend/           # FastAPI application
 ├── ui/                # React application

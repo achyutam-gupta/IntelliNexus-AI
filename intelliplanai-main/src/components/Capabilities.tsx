@@ -30,7 +30,7 @@ export function Capabilities() {
             Capabilities
           </span>
           <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-5xl">
-            What IntelliPlan AI can <span className="text-gradient">generate</span>
+            What IntelliNexus AI can <span className="text-gradient">generate</span>
           </h2>
         </motion.div>
 

@@ -21,7 +21,7 @@ export default function LoginPage() {
             <div className="logo-icon-box" style={{background: '#3b82f6', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
               <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
             </div>
-            IntelliPlan AI
+            IntelliNexus AI
           </div>
           <h2 style={{fontSize: '2.5rem', lineHeight: 1.2, marginBottom: '1.5rem', fontWeight: 700}}>
             Orchestrate <span className="text-gradient-blue">Intelligence</span> in<br/>Every Test Cycle.
@@ -43,7 +43,7 @@ export default function LoginPage() {
           </div>
         </div>
         <div className="powered-by" style={{position: 'absolute', bottom: '2rem', width: '100%', textAlign: 'center', color: '#4b5563', fontSize: '0.75rem', letterSpacing: '0.1em', fontWeight: 600}}>
-          POWERED BY INTELLIPLAN AI ENTERPRISE QA ENGINE
+          POWERED BY INTELLINEXUS AI ENTERPRISE QA ENGINE
         </div>
         <div className="mesh-gradient bg-mesh"></div>
       </div>

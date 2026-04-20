@@ -22,7 +22,6 @@ export default function Sidebar({ active }) {
     { id: 'test-cases', icon: <IconSearch />, label: 'Test Cases', path: '/test-cases' },
     { id: 'code-gen', icon: <IconCode />, label: 'Code Generation', path: '/code-gen' },
     { id: 'coverage', icon: <IconCoverage />, label: 'Coverage', path: '/coverage' },
-    { id: 'settings', icon: <IconSettings />, label: 'Settings', path: '/settings' },
   ];
 
   return (
@@ -32,7 +31,7 @@ export default function Sidebar({ active }) {
           <IconSparkles />
         </div>
         <div className="logo-text" style={{display: 'flex', flexDirection: 'column'}}>
-          <span className="title" style={{color: 'white', fontWeight: 600, fontSize: '1.1rem'}}>IntelliPlan AI</span>
+          <span className="title" style={{color: 'white', fontWeight: 600, fontSize: '1.1rem'}}>IntelliNexus AI</span>
           <span className="sub" style={{color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.05em', fontWeight: 600}}>ENTERPRISE QA</span>
         </div>
       </div>
@@ -43,37 +42,15 @@ export default function Sidebar({ active }) {
           </div>
         ))}
       </nav>
-      <div className="sidebar-footer" style={{padding: '1.5rem 1rem'}}>
-        <div className="user-pill" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px'}}>
-          <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-            <img src="https://i.pravatar.cc/150?u=current_user" alt="User Profile" style={{width: '36px', height: '36px', borderRadius: '50%'}} />
-            <div className="user-details" style={{display: 'flex', flexDirection: 'column'}}>
-              <span className="name" style={{color: 'white', fontSize: '0.9rem', fontWeight: 500}}>
-                {localStorage.getItem('user_name') || sessionStorage.getItem('user_name') || 'IntelliPlan Admin'}
-              </span>
-              <span className="role" style={{color: '#6b7280', fontSize: '0.75rem'}}>Lead QA Architect</span>
-            </div>
+      <div className="sidebar-footer" style={{padding: '1.5rem 1rem', borderTop:'1px solid rgba(255,255,255,0.03)'}}>
+        <div className="user-pill" style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+          <img src="https://i.pravatar.cc/150?u=current_user" alt="User Profile" style={{width: '36px', height: '36px', borderRadius: '50%', border:'1px solid rgba(255,255,255,0.1)'}} />
+          <div className="user-details" style={{display: 'flex', flexDirection: 'column'}}>
+            <span className="name" style={{color: 'white', fontSize: '0.9rem', fontWeight: 500}}>
+              {localStorage.getItem('user_name') || sessionStorage.getItem('user_name') || 'IntelliNexus Admin'}
+            </span>
+            <span className="role" style={{color: '#6b7280', fontSize: '0.75rem'}}>Lead QA Architect</span>
           </div>
-          <button 
-            onClick={() => {
-              sessionStorage.clear();
-              localStorage.clear();
-              navigate('/login');
-            }} 
-            style={{
-              background: 'transparent', border: 'none', color: '#ef4444', 
-              cursor: 'pointer', padding: '8px', borderRadius: '8px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'background 0.2s'
-            }}
-            title="Logout"
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-          >
-            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-          </button>
         </div>
       </div>
     </div>

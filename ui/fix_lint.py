@@ -2,7 +2,7 @@ import os
 import re
 import glob
 
-base_dir = r"c:\Users\Achyutam\OneDrive\Desktop\AI learning\IntelliPlan.AI\ui\src\pages"
+base_dir = r"c:\Users\Achyutam\OneDrive\Desktop\AI learning\IntelliNexus.AI\ui\src\pages"
 files = glob.glob(os.path.join(base_dir, "*.jsx"))
 
 for path in files:

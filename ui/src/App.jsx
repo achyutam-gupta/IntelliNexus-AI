@@ -21,9 +21,10 @@ import './App.css';
 function App() {
   // Ensure global credentials are set automatically from .env
   useEffect(() => {
-    localStorage.setItem("llm_provider", import.meta.env.VITE_LLM_PROVIDER || "Groq");
-    localStorage.setItem("llm_model", import.meta.env.VITE_LLM_MODEL || "openai/gpt-oss-120b");
+    localStorage.setItem("llm_provider", import.meta.env.VITE_LLM_PROVIDER || "Nvidia");
+    localStorage.setItem("llm_model", import.meta.env.VITE_LLM_MODEL || "mistralai/mistral-large-2411");
     localStorage.setItem("llm_groqKey", import.meta.env.VITE_GROQ_API_KEY || "");
+    localStorage.setItem("llm_nvidiaKey", import.meta.env.VITE_NVIDIA_API_KEY || "");
     localStorage.setItem("jira_url", import.meta.env.VITE_JIRA_URL || "");
     localStorage.setItem("jira_email", import.meta.env.VITE_JIRA_EMAIL || "");
     localStorage.setItem("jira_token", import.meta.env.VITE_JIRA_TOKEN || "");

@@ -16,9 +16,9 @@ export const Route = createFileRoute("/")({
   component: Index,
   head: () => ({
     meta: [
-      { title: "IntelliPlan AI — From Requirements to Automation, Instantly" },
+      { title: "IntelliNexus AI — From Requirements to Automation, Instantly" },
       { name: "description", content: "Generate test plans, test cases, and automation code instantly with AI. Ship quality software faster." },
-      { property: "og:title", content: "IntelliPlan AI — From Requirements to Automation, Instantly" },
+      { property: "og:title", content: "IntelliNexus AI — From Requirements to Automation, Instantly" },
       { property: "og:description", content: "Generate test plans, test cases, and automation code instantly with AI." },
     ],
   }),

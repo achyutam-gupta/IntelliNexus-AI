@@ -1,9 +1,10 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { generateContentWithLLM, checkJiraConnection } from '../lib/llmGenerate';
+import { generateContentWithLLM, parseLLMJSON, checkJiraConnection } from '../lib/llmGenerate';
 import { IconSearch, IconSparkles } from '../components/Icons';
 import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
 import UserStoryTemplateRaw from '../templates/user_story_spec.md?raw';
 
 /* ─── Inline SVG Icon palette ─── */
@@ -35,6 +36,13 @@ const TYPE_BADGE = { Functional:'#60a5fa', Security:'#10b981', Negative:'#f59e0b
 
 export default function UserStories() {
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (sessionStorage.getItem('guestMode') === 'true') {
+      navigate('/login');
+    }
+  }, [navigate]);
+
   const fileRef  = useRef(null);
 
   /* ── State ── */
@@ -139,11 +147,13 @@ Execution Logic:
   * Convert JIRA requirements into the Job Story format (Situation/Motivation/Outcome).
   * Translate technical constraints from the Doc into Strict Acceptance Criteria.
   * Identify "Blast Radius" risks by analyzing dependencies mentioned in the technical text.
-- Validate: Ensure every section of the template is populated. If data is missing for a specific field, use logic to infer a professional default or mark it as [PENDING_TECHNICAL_REVIEW].
+- Validate: Ensure every section of the template is populated. If source data is insufficient, use professional defaults based on industry standards. 
+- Output Mode: You must return ONLY a JSON array. Do not include any meta-text, markdown tags, or status messages like "[PENDING_REVIEW]" outside of the JSON structure.
 
 UI MAPPING INSTRUCTIONS:
-You must translate the final validated output STRICTLY into a JSON array of objects to be consumed by the UI. Do not wrap in markdown tags like \`\`\`json. 
-Each object must have this exact structure:
+- Return a JSON array of objects.
+- If no requirements are found, return a SAMPLE user story array with placeholders.
+- Do not add commentary.
 {
   "id": "US-XXXX", 
   "title": "Short title",
@@ -159,44 +169,39 @@ Each object must have this exact structure:
   ],
   "notes": ["Test note 1", "Test note 2"]
 }`;
-      
       const llmResponse = await generateContentWithLLM(systemPrompt);
       if(!llmResponse) throw new Error("No response from LLM");
       
-      // Clean potential markdown blocks
-      let cleanResponse = llmResponse.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
-      
-      // Extract only the JSON array part
-      const startBracketIndex = cleanResponse.indexOf('[');
-      const endBracketIndex = cleanResponse.lastIndexOf(']');
-      if (startBracketIndex !== -1 && endBracketIndex !== -1) {
-          cleanResponse = cleanResponse.substring(startBracketIndex, endBracketIndex + 1);
-      }
-      
-      // Fix common LLM hallucinated trailing commas which break JSON.parse
-      cleanResponse = cleanResponse.replace(/,\s*([\]}])/g, '$1');
-      
-      let parsedStories = JSON.parse(cleanResponse);
-      
-      setStories(parsedStories);
-      setSelected(new Set()); // Reset selection
+      const parsedStories = parseLLMJSON(llmResponse);
+      const enriched = parsedStories.map(s => ({
+        ...s,
+        jiraKey: fetchedJiraData?.key || null
+      }));
+      setStories(enriched);
+      setSelected(new Set(enriched.map(s => s.id))); // Auto-select all for immediate transition
       toast.success('Successfully generated user stories!');
     } catch (err) {
       console.error(err);
-      toast.error(`LLM generation failed: ${err.message}. Using fallback data.`);
-      
-      // Fallback Data so that UI functionality still persists
-      setStories([
-          {
-            id: 'US-1024', title: 'Secure User Authentication', module: 'Authentication',
-            type: 'Functional', priority: 'Critical', qualityScore: 94,
-            role: 'registered user', goal: 'log in securely', value: 'access my personal dashboard',
-            criteria: [{ scenario: 'Successful Login', given: 'on login page', when: 'valid credentials', then: 'dashboard' }],
-            notes: ['Verify session token creation easily']
-          }
-      ]);
+      toast.error(err.message, { duration: 5000 });
     }
     setGenerating(false); 
+  };
+
+  const handleExport = () => {
+    if (!stories.length) return toast.error("No stories to export.");
+    const blob = new Blob([JSON.stringify(stories, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `user-stories-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("User Stories exported as JSON.");
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast.success("Link copied to clipboard!");
   };
 
   const toggleSelect = (id) => setSelected(p => { const s = new Set(p); s.has(id)?s.delete(id):s.add(id); return s; });
@@ -217,25 +222,7 @@ Each object must have this exact structure:
       <Sidebar active="user-stories" />
 
       <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-        
-        {/* ── Top Nav ── */}
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 2rem', background: 'rgba(8,12,20,0.7)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'sticky', top: 0, zIndex: 50 }}>
-          <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', width: '320px', transition: 'border 0.2s' }}>
-            <IconSearch />
-            <input type="text" placeholder="Search..." style={{ background: 'transparent', border: 'none', color: 'white', marginLeft: '0.75rem', outline: 'none', width: '100%', fontSize: '0.9rem' }} />
-            <div style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>Ctrl K</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
-            <span style={{ color: '#3b82f6', cursor: 'pointer', transition: 'color 0.2s' }}>Workspace</span>
-            <span style={{ color: '#94a3b8', cursor: 'pointer', transition: 'color 0.2s' }}>Project Settings</span>
-            <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)' }} />
-            <div style={{ position: 'relative', cursor: 'pointer', color: '#94a3b8' }}>
-              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-              <div style={{ position: 'absolute', top: -2, right: -2, width: 6, height: 6, background: '#ef4444', borderRadius: '50%' }} />
-            </div>
-            <img src="https://i.pravatar.cc/150?u=current_user" alt="User" style={{ width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)' }} />
-          </div>
-        </header>
+        <Header searchPlaceholder="Search stories..." />
 
         {/* ── Page Header ── */}
         <div style={{ padding:'2rem 2rem 1rem', flexShrink:0 }}>
@@ -343,6 +330,11 @@ Each object must have this exact structure:
               <button onClick={selectAll} style={{ ...btn('#60a5fa') }}>Select All</button>
               <button onClick={clearAll}  style={{ ...btn('#64748b') }}>Clear</button>
               <div style={{ flex: 1 }} />
+              <div style={{ display:'flex', gap:'8px', marginRight:'1rem' }}>
+                <button onClick={() => toast.success("Stories state synchronized.")} style={btn('#10b981')}><Ic.Check/> Save</button>
+                <button onClick={handleExport} style={btn('#60a5fa')}><Ic.Export/> Export</button>
+                <button onClick={handleShare} style={btn('#a78bfa')}><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share</button>
+              </div>
               <button onClick={()=>{
                 const selectedData = stories.filter(s => selected.has(s.id));
                 navigate('/test-plan', { state: { importedStories: selectedData } });

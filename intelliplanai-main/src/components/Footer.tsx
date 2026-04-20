@@ -19,7 +19,7 @@ export function Footer() {
                 <Zap className="h-4 w-4 text-primary" />
               </div>
               <span className="text-base font-bold text-foreground">
-                IntelliPlan <span className="text-gradient-cyan">AI</span>
+                IntelliNexus <span className="text-gradient-cyan">AI</span>
               </span>
             </div>
             <p className="mt-4 text-sm text-muted-foreground leading-relaxed">
@@ -46,7 +46,7 @@ export function Footer() {
 
         <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-border/50 pt-6 sm:flex-row">
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} IntelliPlan AI. All rights reserved.
+            © {new Date().getFullYear()} IntelliNexus AI. All rights reserved.
           </p>
           <div className="flex gap-6">
             <a href="#" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Twitter</a>

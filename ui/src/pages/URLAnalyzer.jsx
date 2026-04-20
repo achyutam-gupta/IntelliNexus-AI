@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { generateContentWithLLM, checkJiraConnection } from '../lib/llmGenerate';
 import { IconSearch, IconLightning, IconSparkles } from '../components/Icons';
 import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
 
 /* ─── Inline SVG helpers ─── */
 const IC = {
@@ -252,23 +253,7 @@ export default function URLAnalyzer() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
 
         {/* ── Top header (glass) ── */}
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 2rem', background: 'rgba(8,12,20,0.7)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'sticky', top: 0, zIndex: 50 }}>
-          <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', width: '320px', transition: 'border 0.2s' }}>
-            <IconSearch />
-            <input type="text" placeholder="Search analytics…" style={{ background: 'transparent', border: 'none', color: 'white', marginLeft: '0.75rem', outline: 'none', width: '100%', fontSize: '0.9rem' }} />
-            <div style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>Ctrl K</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
-            <span style={{ color: '#3b82f6', cursor: 'pointer', transition: 'color 0.2s' }}>Workspace</span>
-            <span style={{ color: '#94a3b8', cursor: 'pointer', transition: 'color 0.2s' }}>Project Settings</span>
-            <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)' }} />
-            <div style={{ position: 'relative', cursor: 'pointer', color: '#94a3b8' }}>
-              <IC.Bell />
-              <div style={{ position: 'absolute', top: -2, right: -2, width: 6, height: 6, background: '#ef4444', borderRadius: '50%' }} />
-            </div>
-            <img src="https://i.pravatar.cc/150?u=current_user" alt="User" style={{ width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)' }} />
-          </div>
-        </header>
+        <Header searchPlaceholder="Search analytics..." />
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '2rem', paddingBottom: '100px' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

@@ -1,7 +1,7 @@
 # Project Constitution (gemini.md)
 
 ## Project Map & State Tracking
-- **Project Name:** IntelliPlan AI
+- **Project Name:** IntelliNexus AI
 - **Description:** An agentic workflow to pull Jira/ADO/X-Ray info dynamically, use an LLM (Ollama, GROQ, etc.), and generate standardized test plans from a `.docx` template.
 
 ## Data Schemas

@@ -94,7 +94,7 @@ export function Features() {
             <span className="text-gradient">automate testing</span>
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-            From planning to execution, IntelliPlan AI covers the entire testing lifecycle with enterprise-grade intelligence.
+            From planning to execution, IntelliNexus AI covers the entire testing lifecycle with enterprise-grade intelligence.
           </p>
         </motion.div>
 

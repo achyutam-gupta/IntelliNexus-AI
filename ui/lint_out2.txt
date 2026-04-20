@@ -3,10 +3,10 @@
 > eslint .
 
 
-C:\Users\Achyutam\OneDrive\Desktop\AI learning\IntelliPlan.AI\ui\src\lib\llmHandshake.js
+C:\Users\Achyutam\OneDrive\Desktop\AI learning\IntelliNexus.AI\ui\src\lib\llmHandshake.js
   43:52  error  'model' is defined but never used  no-unused-vars
 
-C:\Users\Achyutam\OneDrive\Desktop\AI learning\IntelliPlan.AI\ui\src\pages\Settings.jsx
+C:\Users\Achyutam\OneDrive\Desktop\AI learning\IntelliNexus.AI\ui\src\pages\Settings.jsx
    87:9   error    'navigate' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          no-unused-vars
   108:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
 

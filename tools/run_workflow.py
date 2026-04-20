@@ -68,8 +68,8 @@ def main():
         jira_data = fetch_jira()
         
         # Load templates
-        base_dir = r"c:\Users\Achyutam\OneDrive\Desktop\AI learning\IntelliPlan.AI\Templates"
-        out_dir = r"c:\Users\Achyutam\OneDrive\Desktop\AI learning\IntelliPlan.AI\.tmp\INFRA-5"
+        base_dir = r"c:\Users\Achyutam\OneDrive\Desktop\AI learning\IntelliNexus.AI\Templates"
+        out_dir = r"c:\Users\Achyutam\OneDrive\Desktop\AI learning\IntelliNexus.AI\.tmp\INFRA-5"
         
         t_us = read_file(os.path.join(base_dir, "Use Story", "User Story.md"))
         t_tp = read_file(os.path.join(base_dir, "TestPlan_Template", "Test Plan - Template.md"))

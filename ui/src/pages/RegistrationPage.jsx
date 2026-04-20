@@ -16,7 +16,7 @@ export default function RegistrationPage() {
     <div className="auth-page split-layout">
       <div className="auth-visual">
         <div className="visual-content">
-          <div className="logo-white"><IconSparkles /> IntelliPlan AI</div>
+          <div className="logo-white"><IconSparkles /> IntelliNexus AI</div>
           <h2>Accelerate Every <span className="text-gradient-vibrant">Test Cycle</span>.</h2>
           <p>The industry's first agentic platform for end-to-end quality assurance transformation.</p>
         </div>

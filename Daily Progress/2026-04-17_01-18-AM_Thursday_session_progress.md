@@ -1,7 +1,7 @@
-# IntelliPlan AI — Session Progress & Resumption Guide
-> **Last Updated:** 2026-04-17 01:12 IST  
-> **Conversation ID:** `66cbeffa-c69a-4b35-bc71-962b2f841b46`  
-> **Status:** 🟡 In Progress — Stage 2 of 4 complete
+# IntelliNexus AI — Session Progress & Resumption Guide
+> **Last Updated:** 2026-04-17 16:45 IST  
+> **Conversation ID:** `12678340-a07e-4d16-af2a-c621a8c00009`  
+> **Status:** 🔵 Operational — All 5 stages wired + High-Availability Fallback (NVIDIA) + Release Teaser Live
 
 ---
 
@@ -18,13 +18,14 @@ Build a fully automated, end-to-end QA lifecycle engine that:
 
 ## 🔐 Credentials (Auto-injected on boot from `ui/.env`)
 
-These are loaded in [App.jsx](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliPlan.AI/ui/src/App.jsx) via `import.meta.env.VITE_*` variables:
+These are loaded in [App.jsx](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliNexus.AI/ui/src/App.jsx) via `import.meta.env.VITE_*` variables:
 
 | Key | Source |
 |---|---|
 | `llm_provider` | `VITE_LLM_PROVIDER` |
 | `llm_model` | `VITE_LLM_MODEL` |
 | `llm_groqKey` | `VITE_GROQ_API_KEY` |
+| `llm_nvidiaKey` | Hardcoded in `App.jsx` (NVIDIA Mistral Fallback) |
 | `jira_url` | `VITE_JIRA_URL` |
 | `jira_email` | `VITE_JIRA_EMAIL` |
 | `jira_token` | `VITE_JIRA_TOKEN` |
@@ -71,31 +72,31 @@ UI MAPPING INSTRUCTIONS:
 ### Core Application
 | File | What Changed |
 |---|---|
-| [App.jsx](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliPlan.AI/ui/src/App.jsx) | Replaced old handshake `useEffect` with hardcoded credential injection |
-| [llmGenerate.js](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliPlan.AI/ui/src/lib/llmGenerate.js) | Improved Groq error handling — now parses `error.message` from API response body |
+| [App.jsx](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliNexus.AI/ui/src/App.jsx) | Replaced old handshake `useEffect` with hardcoded credential injection |
+| [llmGenerate.js](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliNexus.AI/ui/src/lib/llmGenerate.js) | Improved Groq error handling — now parses `error.message` from API response body |
 
 ### Stage 1: User Stories
 | File | What Changed |
 |---|---|
-| [UserStories.jsx](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliPlan.AI/ui/src/pages/UserStories.jsx) | Imported `user_story_spec.md?raw`, replaced prompt with Extract→Map→Synthesize→Validate pattern |
+| [UserStories.jsx](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliNexus.AI/ui/src/pages/UserStories.jsx) | Imported `user_story_spec.md?raw`, replaced prompt with Extract→Map→Synthesize→Validate pattern |
 
 ### Stage 2: Test Plan
 | File | What Changed |
 |---|---|
-| [TestPlan.jsx](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliPlan.AI/ui/src/pages/TestPlan.jsx) | Imported `test_plan_spec.md?raw`, upgraded prompt to same execution logic pattern, added robust JSON extraction (`startBrace/endBrace` + trailing comma fix) |
+| [TestPlan.jsx](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliNexus.AI/ui/src/pages/TestPlan.jsx) | Imported `test_plan_spec.md?raw`, upgraded prompt to same execution logic pattern, added robust JSON extraction (`startBrace/endBrace` + trailing comma fix) |
 
 ### Templates (Critical Fix)
 | File | Size | Notes |
 |---|---|---|
-| [user_story_spec.md](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliPlan.AI/ui/src/templates/user_story_spec.md) | 1.7 KB | Extracted from binary `.docx` |
-| [test_plan_spec.md](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliPlan.AI/ui/src/templates/test_plan_spec.md) | 5.0 KB | Extracted from updated `.doc` |
-| [test_scenario_spec.md](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliPlan.AI/ui/src/templates/test_scenario_spec.md) | 5.7 KB | Was already plain text |
-| [test_case_spec.md](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliPlan.AI/ui/src/templates/test_case_spec.md) | 3.4 KB | Extracted from binary `.doc` |
+| [user_story_spec.md](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliNexus.AI/ui/src/templates/user_story_spec.md) | 1.7 KB | Extracted from binary `.docx` |
+| [test_plan_spec.md](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliNexus.AI/ui/src/templates/test_plan_spec.md) | 5.0 KB | Extracted from updated `.doc` |
+| [test_scenario_spec.md](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliNexus.AI/ui/src/templates/test_scenario_spec.md) | 5.7 KB | Was already plain text |
+| [test_case_spec.md](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliNexus.AI/ui/src/templates/test_case_spec.md) | 3.4 KB | Extracted from binary `.doc` |
 
 ### Backend Tool
 | File | What Changed |
 |---|---|
-| [run_workflow.py](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliPlan.AI/tools/run_workflow.py) | Python script for offline E2E pipeline (Jira→Stories→Plan→Scenarios→Cases). Updated to `openai/gpt-oss-120b` model. |
+| [run_workflow.py](file:///c:/Users/Achyutam/OneDrive/Desktop/AI%20learning/IntelliNexus.AI/tools/run_workflow.py) | Python script for offline E2E pipeline (Jira→Stories→Plan→Scenarios→Cases). Updated to `openai/gpt-oss-120b` model. |
 
 ---
 
@@ -119,6 +120,36 @@ UI MAPPING INSTRUCTIONS:
 
 ---
 
+## 🛡️ High-Availability & Robustness Upgrades
+
+### 1. NVIDIA NIM Fallback (Mistral Large 3)
+- **Problem:** Groq rate limits (429) often hit during high-volume test case generation.
+- **Solution:** Implemented automatic high-availability fallback in `llmGenerate.js`.
+- **Logic:** If primary provider (Groq) fails, the engine instantly retries with `mistralai/mistral-large-3` via NVIDIA's API to ensure zero disruption.
+
+### 2. Robust JSON Repair Engine (V2)
+- **Problem:** LLMs occasionally include raw newlines, unescaped quotes, or missing commas in long JSON payloads (~6-8KB).
+- **Solution:** Enhanced the "Extract→Map→Synthesize→Validate" parsing layer with heuristic structural repair:
+  - Fixes missing commas between inline properties (`"a":1 "b":2` → `"a":1, "b":2`)
+  - Fixes unescaped internal quotes via regex lookaheads.
+  - Automatically collapses raw newlines if standard `JSON.parse` fails.
+
+---
+
+## 🎨 Launch Readiness (Marketing & UI)
+
+### 1. Cinematic Release Teaser
+- **Component:** `ReleaseTeaser.tsx`
+- **Location:** Integrated after the Hero section on the Landing Page.
+- **Features:** Glassmorphic feature tiles, high-impact typography, and a "Global Deployment: Q2 2026" timeline.
+
+### 2. Immersive Demo Modal
+- **Component:** Integrated directly into `LandingPage.jsx`.
+- **Features:** Full-screen video player with a custom-generated "Demo Poster" (created via AI).
+- **Triggers:** All "Watch Demo" buttons across the landing page are fully wired to launch the cinematic walkthrough.
+
+---
+
 ## ✅ Validated Pipeline Stages
 
 ### Stage 1: User Stories ✅ COMPLETE
@@ -136,91 +167,50 @@ UI MAPPING INSTRUCTIONS:
 - **Template:** `test_plan_spec.md` injected into prompt
 - **State Persistence:** Plan data saved to `sessionStorage` key `tp_data`
 
-### Stage 3: Test Scenarios ❌ NOT YET WIRED
-- **Current State:** `TestScenarios.jsx` renders a static hardcoded table (4 dummy scenarios)
-- **No `handleGenerate`** function exists — it's purely a UI mockup
-- **Template Ready:** `test_scenario_spec.md` (5.7KB) is extracted and available
-- **Next Step:** Build full `handleGenerate` with template injection + JSON parsing
+### Stage 3: Test Scenarios ✅ COMPLETE
+- **Input:** User Stories from `sessionStorage('us_stories')` + Test Plan from `sessionStorage('tp_data')`
+- **LLM Generation:** Full `handleGenerate()` with Extract→Map→Synthesize→Validate prompt pattern
+- **Template:** `test_scenario_spec.md` injected into prompt
+- **Output Schema:** `[{ id, name, description, priority, type, linkedStory, preconditions, testConditions[], businessImpact, testLevel, status }]`
+- **UI:** 3-column layout (source context | scenario cards | metrics panel) with expandable details
+- **State Persistence:** Scenarios saved to `sessionStorage` key `ts_scenarios`, selection to `ts_selected`
+- **Navigation:** "Proceed to Test Cases" button persists data and navigates to `/test-cases`
+- **Build Verified:** Vite build passes with zero errors
 
-### Stage 4: Test Cases ❌ NOT YET WIRED
-- **Current State:** `TestCases.jsx` renders 3 hardcoded test cases
-- **No `handleGenerate`** function exists
-- **Template Ready:** `test_case_spec.md` (3.4KB) is extracted and available
-- **Next Step:** Build full `handleGenerate` with template injection + JSON parsing
+### Stage 4: Test Cases ✅ COMPLETE
+- **Input:** Test Scenarios from `sessionStorage('ts_scenarios')` + User Stories from `sessionStorage('us_stories')`
+- **Output Schema:** `[{ id, title, linkedScenario, ..., steps[{step,action,testData,expected}], status }]`
+- **Quality Check:** 7-point AI validation (Preconditions, Reproducibility, Clarity, Data accuracy, etc.)
+
+### Stage 5: Code Generation ✅ COMPLETE
+- **Input:** Selected Test Case from `sessionStorage('tc_selected')`
+- **Engine:** Neural Script Factory with `code_gen_spec.md` template
+- **Support:** Cypress, Playwright, Selenium (Adaptive selector mapping)
+- **Features:** Headless toggle, Retry logic, Video recording, AI logic scan
+- **UI:** 3-column layout with real-time JSON/Code streaming editor
+- **State Persistence:** Framework selection saved locally; code persists in session
+- **Build Verified:** Vite build passes with zero errors
 
 ---
 
 ## 🔜 Exact Next Steps (Resume Here)
 
-### 1. Wire Up Test Scenarios (`TestScenarios.jsx`)
-```
-Action Items:
-- Add: import TestScenarioTemplateRaw from '../templates/test_scenario_spec.md?raw';
-- Add: import { generateContentWithLLM } from '../lib/llmGenerate';
-- Add: useState hooks for scenarios[], generating, generated
-- Add: Load storyPool + testPlanData from sessionStorage
-- Build: handleGenerate() with Extract→Map→Synthesize→Validate prompt
-- Define: JSON output schema for scenarios array
-- Add: sessionStorage persistence for generated scenarios
-- Add: "Proceed to Test Cases" navigation button
-```
+1. **Wire Stage 6 (Coverage Insights):** 
+   - Currently a placeholder mockup.
+   - Transform into a dynamic Gap Analysis dashboard.
+   - Pull all session data (`us_stories`, `ts_scenarios`, `tc_cases`) and visualize the E2E lifecycle coverage.
+   - AI review of gap analysis (identify which stories lack adequate scenario/code coverage).
 
-**Expected JSON output schema for Test Scenarios:**
-```json
-[
-  {
-    "id": "TS-001",
-    "name": "Scenario name",
-    "description": "Full description",
-    "priority": "High/Medium/Low",
-    "type": "Functional/Security/Integration",
-    "linkedStory": "US-001",
-    "preconditions": "What must be true before",
-    "status": "Draft"
-  }
-]
-```
-
-### 2. Wire Up Test Cases (`TestCases.jsx`)
-```
-Action Items:
-- Add: import TestCaseTemplateRaw from '../templates/test_case_spec.md?raw';
-- Add: import { generateContentWithLLM } from '../lib/llmGenerate';
-- Add: useState hooks for cases[], generating, generated
-- Add: Load scenarios from sessionStorage
-- Build: handleGenerate() with template-driven prompt
-- Define: JSON output schema for test cases array
-- Add: "Generate Automation Code" navigation to /code-gen
-```
-
-**Expected JSON output schema for Test Cases:**
-```json
-[
-  {
-    "id": "TC-001",
-    "title": "Test case title",
-    "linkedScenario": "TS-001",
-    "steps": ["Step 1", "Step 2", "Step 3"],
-    "expected": "Expected result description",
-    "priority": "HIGH/MEDIUM/LOW",
-    "labels": ["Security", "Auth"],
-    "preconditions": "Prerequisites"
-  }
-]
-```
-
-### 3. Validate Full E2E with Playwright
-```
-Flow: Landing → User Stories (Jira INFRA-1) → Test Plan → Test Scenarios → Test Cases
-Record the entire pipeline as a demo video.
-```
+2. **E2E Validation:** 
+   - Perform a full manual walkthrough: Landing → Dashboard → URL Analyzer → User Stories → Test Plan → Test Scenarios → Test Cases → Code Gen.
+   - Capture final verification screenshots of the entire working pipeline.
 
 ---
 
 ## 📂 Project Structure Reference
 
 ```
-IntelliPlan.AI/
+IntelliNexus.AI/
 ├── Templates/                        # Original .doc/.docx templates (binary)
 │   ├── Use Story/User Story.md       # Actually a .docx
 │   ├── TestPlan_Template/Test Plan - Template.doc
@@ -239,10 +229,13 @@ IntelliPlan.AI/
 │   │   │   ├── test_scenario_spec.md # 5.7 KB
 │   │   │   └── test_case_spec.md     # 3.4 KB
 │   │   └── pages/
-│   │       ├── UserStories.jsx       # ✅ WIRED — Template + Execution Logic
-│   │       ├── TestPlan.jsx          # ✅ WIRED — Template + Execution Logic
-│   │       ├── TestScenarios.jsx     # ❌ STATIC MOCKUP — Needs wiring
-│   │       └── TestCases.jsx         # ❌ STATIC MOCKUP — Needs wiring
+│   │       ├── UserStories.jsx       # ✅ wired
+│   │       ├── TestPlan.jsx          # ✅ wired
+│   │       ├── TestScenarios.jsx     # ✅ wired
+│   │       ├── TestCases.jsx         # ✅ wired
+│   │       ├── CodeGen.jsx           # ✅ wired
+│   │       ├── Coverage.jsx          # ❌ placeholder mockup
+│   │       └── Settings.jsx          # ❌ static mockup
 │   └── .env                          # Jira env vars (legacy, now in App.jsx)
 └── .tmp/INFRA-5/                     # Offline generated artifacts
     ├── 1_User_Stories.md
@@ -255,7 +248,7 @@ IntelliPlan.AI/
 
 ## 🚀 How to Start the Project
 ```bash
-cd "c:\Users\Achyutam\OneDrive\Desktop\AI learning\IntelliPlan.AI"
+cd "c:\Users\Achyutam\OneDrive\Desktop\AI learning\IntelliNexus.AI"
 npm --prefix ui run dev
 # App runs at http://localhost:5173
 # Credentials auto-injected — no Settings needed

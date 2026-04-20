@@ -29,3 +29,9 @@ Thumbs.db
 *.log
 # Browser MCP logs
 .playwright-mcp/
+
+# Local Brain & Scratch
+brain/
+scratch/
+ui/src/brain/
+.gemini/

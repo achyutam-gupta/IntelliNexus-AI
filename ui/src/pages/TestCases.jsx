@@ -1,7 +1,28 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconSearch, IconDownload, IconSparkles, IconLightning, IconTrash, IconPlan } from '../components/Icons';
+import { toast } from 'sonner';
+import { generateContentWithLLM, parseLLMJSON, checkJiraConnection } from '../lib/llmGenerate';
+import { IconSearch, IconSparkles } from '../components/Icons';
 import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
+import TestCaseTemplateRaw from '../templates/test_case_spec.md?raw';
+
+/* ─── Inline SVGs ─── */
+const Ic = {
+  Save:    ()=><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+  Export:  ()=><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  Refresh: ()=><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
+  Check:   ()=><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path d="M5 13l4 4L19 7"/></svg>,
+  Warn:    ()=><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  Send:    ()=><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
+  Loader:  ()=><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{animation:'spin .7s linear infinite'}}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>,
+  Expand:  ()=><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>,
+  Code:    ()=><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>,
+};
+
+/* ─── Color maps ─── */
+const PRIO_C = { Critical:'#ef4444', High:'#f97316', Medium:'#a78bfa', Low:'#64748b' };
+const TYPE_C = { Functional:'#60a5fa', Security:'#10b981', Regression:'#a78bfa', API:'#c084fc', Smoke:'#f97316', UAT:'#fb7185', Negative:'#f59e0b', 'Edge Case':'#fb7185', Performance:'#06b6d4' };
 
 export default function TestCases() {
   const navigate = useNavigate();
@@ -14,178 +35,331 @@ export default function TestCases() {
     }
   };
 
+  /* ── Load upstream data from sessionStorage ── */
+  const scenarios   = JSON.parse(sessionStorage.getItem('ts_scenarios') || '[]');
+  const tsSelected  = JSON.parse(sessionStorage.getItem('ts_selected')  || '[]');
+  const storyPool   = JSON.parse(sessionStorage.getItem('us_stories')   || '[]');
+  const tpData      = JSON.parse(sessionStorage.getItem('tp_data')      || 'null');
+
+  /* ── State ── */
+  const [cases, setCases]           = useState(() => JSON.parse(sessionStorage.getItem('tc_cases') || '[]'));
+  const [selected, setSelected]     = useState(() => new Set(JSON.parse(sessionStorage.getItem('tc_selected') || '[]')));
+  const [generating, setGen]        = useState(false);
+  const [generated, setGenerated]   = useState(() => JSON.parse(sessionStorage.getItem('tc_generated') || 'false'));
+  const [expanded, setExpanded]     = useState(null);
+  const [searchQ, setSearchQ]       = useState('');
+  const [filterPrio, setFilterPrio] = useState('All');
+  const [filterType, setFilterType] = useState('All');
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncJira = async () => {
+    const selectedCases = cases.filter(c => selected.has(c.id));
+    if (selectedCases.length === 0) return toast.error("No cases selected for sync.");
+    
+    setSyncing(true);
+    let successCount = 0;
+    
+    try {
+      const email = localStorage.getItem('jira_email');
+      const token = localStorage.getItem('jira_token');
+      if (!email || !token) throw new Error("Jira credentials missing in Settings.");
+      const encoded = btoa(`${email}:${token}`);
+      
+      for (const tc of selectedCases) {
+        let key = tc.jiraKey;
+        if (!key) {
+           const sc = scenarios.find(s => s.id === tc.linkedScenario);
+           if (sc) {
+              const us = storyPool.find(u => u.id === sc.linkedStory);
+              if (us) key = us.jiraKey;
+           }
+        }
+        
+        if (!key) {
+          console.warn(`[SYNC] No Jira Key found for ${tc.id}`);
+          continue;
+        }
+
+        const syncContent = `AI-Generated Test Case: ${tc.title}\nID: ${tc.id}\nPriority: ${tc.priority}\n\nSteps:\n${(tc.steps||[]).map(s => `${s.step}. ${s.action} -> ${s.expected}`).join('\n')}`;
+
+        const res = await fetch(`/api/jira/rest/api/3/issue/${key}/comment`, {
+          method: 'POST',
+          headers: { Authorization: `Basic ${encoded}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            body: { type: "doc", version: 1, content: [{ type: "paragraph", content: [{ type: "text", text: syncContent }] }] }
+          })
+        });
+
+        if (res.ok) successCount++;
+      }
+      
+      if (successCount > 0) toast.success(`Synced ${successCount} cases to Jira issues.`);
+      else toast.error("Sync failed: No valid Jira links resolved.");
+      
+    } catch (err) {
+      console.error(err);
+      toast.error(`Sync error: ${err.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleExport = () => {
+    if (!cases.length) return toast.error("No cases to export.");
+    const blob = new Blob([JSON.stringify(cases, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `test-cases-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Test Cases exported as JSON.");
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast.success("Link copied to clipboard!");
+  };
+
+  /* ── Session persistence ── */
+  useEffect(() => {
+    sessionStorage.setItem('tc_cases',     JSON.stringify(cases));
+    sessionStorage.setItem('tc_selected',  JSON.stringify(Array.from(selected)));
+    sessionStorage.setItem('tc_generated', JSON.stringify(generated));
+  }, [cases, selected, generated]);
+
+  /* ── Build input context ── */
+  const activeScenarios = tsSelected.length > 0
+    ? scenarios.filter(s => tsSelected.includes(s.id))
+    : scenarios;
+
+  /* ── handleGenerate ── */
+  const handleGenerate = async () => {
+    if (activeScenarios.length === 0) return toast.error('No test scenarios found.');
+    await checkJiraConnection();
+    setGen(true);
+
+    try {
+      const scenariosJSON = JSON.stringify(activeScenarios, null, 2);
+      const storiesJSON   = storyPool.length > 0 ? JSON.stringify(storyPool, null, 2) : 'No user stories available.';
+
+      const promptText = `Role: Senior QA Automation Engineer (ISTQB Certified).
+      Task: Decompose Scenarios into atomic, executable Test Cases.
+      
+      REQUIRED JSON SCHEMA (STRICT):
+      [
+        {
+          "id": "TC-001",
+          "title": "Verifiable title",
+          "priority": "Critical|High|Medium|Low",
+          "testType": "Functional|Security|Regression|API|Smoke|UAT",
+          "automationCandidate": "Yes|No|Partial",
+          "preconditions": "Environment/Data state",
+          "steps": [
+            { "step": 1, "action": "User action", "expected": "System response" }
+          ],
+          "expectedResult": "Overall outcome",
+          "linkedScenario": "SC-XXX"
+        }
+      ]
+
+      TEMPLATE:
+      ${TestCaseTemplateRaw}
+      
+      INPUT DATA:
+      Scenarios: ${scenariosJSON}
+      Reference Stories: ${storiesJSON}
+
+      Requirement: Generate EXACTLY 8-12 cases. Output ONLY the JSON array.`;
+
+      const llmResponse = await generateContentWithLLM(promptText);
+      if(!llmResponse) throw new Error("No response from AI");
+      
+      const rawParsed = parseLLMJSON(llmResponse);
+      const items = Array.isArray(rawParsed) ? rawParsed : (rawParsed.testCases || []);
+      
+      // Normalization Layer: Map erratic LLM keys to UI schema
+      const normalized = items.map(item => ({
+        id: item.id || item.tc_id || item.caseId || `TC-${Math.floor(Math.random()*900)+100}`,
+        title: item.title || item.test_title || item.name || item.testCaseTitle || 'Untitled Test Case',
+        priority: item.priority || item.severity || 'Medium',
+        testType: item.testType || item.type || 'Functional',
+        automationCandidate: item.automationCandidate || item.automation || 'No',
+        preconditions: item.preconditions || item.pre_req || 'Standard environment',
+        steps: Array.isArray(item.steps) ? item.steps : (Array.isArray(item.testSteps) ? item.testSteps : []),
+        expectedResult: item.expectedResult || item.final_outcome || '',
+        linkedScenario: item.linkedScenario || item.scenario_id || ''
+      }));
+      
+      setCases(normalized);
+      setSelected(new Set(normalized.map(c => c.id)));
+      setGenerated(true);
+      toast.success(`${normalized.length} aligned cases generated.`);
+    } catch (err) {
+      console.error(err);
+      toast.error(`Alignment failed: ${err.message}`);
+    } finally {
+      setGen(false);
+    }
+  };
+
+  /* ── Helpers ── */
+  const toggleSelect = (id) => setSelected(p => { const s = new Set(p); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const selectAll    = () => setSelected(new Set(cases.map(c => c.id)));
+  const clearAll     = () => setSelected(new Set());
+
+  const visible = cases.filter(c => {
+    if (searchQ && !c.title?.toLowerCase().includes(searchQ.toLowerCase()) && !c.id?.toLowerCase().includes(searchQ.toLowerCase())) return false;
+    if (filterPrio !== 'All' && c.priority !== filterPrio) return false;
+    if (filterType !== 'All' && c.testType !== filterType) return false;
+    return true;
+  });
+
+  const testTypes       = [...new Set(cases.map(c => c.testType).filter(Boolean))];
+  const linkedScenarios = [...new Set(cases.map(c => c.linkedScenario).filter(Boolean))];
+  const highPrioCount   = cases.filter(c => ['Critical','High','HIGH'].includes(c.priority)).length;
+  const autoYes         = cases.filter(c => c.automationCandidate === 'Yes').length;
+  const autoPartial     = cases.filter(c => c.automationCandidate === 'Partial').length;
+  const autoReadyPct    = cases.length > 0 ? Math.round(((autoYes + autoPartial * 0.5) / cases.length) * 100) : 0;
+  const scenarioCovPct  = activeScenarios.length > 0 ? Math.min(100, Math.round((linkedScenarios.length / activeScenarios.length) * 100)) : 0;
+  const totalSteps      = cases.reduce((a, c) => a + (c.steps?.length || 0), 0);
+
+  const typeCounts = {}; cases.forEach(c => { typeCounts[c.testType] = (typeCounts[c.testType] || 0) + 1; });
+  const prioCounts = {}; cases.forEach(c => { prioCounts[c.priority] = (prioCounts[c.priority] || 0) + 1; });
+
+  const card   = { background:'rgba(15,23,42,0.7)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'12px' };
+  const inCard = { background:'rgba(8,12,20,0.6)',  border:'1px solid rgba(255,255,255,0.05)', borderRadius:'8px', padding:'1rem 1.1rem' };
+  const btn    = (c) => ({ display:'flex',alignItems:'center',gap:'6px',background:`${c}12`,border:`1px solid ${c}28`,color:c,padding:'0.42rem 0.85rem',borderRadius:'7px',fontSize:'0.76rem',fontWeight:600,cursor:'pointer' });
+  const tag    = (c) => ({ background:`${c}15`,color:c,border:`1px solid ${c}25`,padding:'1px 7px',borderRadius:'8px',fontSize:'0.66rem',fontWeight:700 });
+  const inp    = { background:'rgba(15,23,42,0.8)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'7px',color:'white',outline:'none',padding:'0.42rem 0.7rem',fontSize:'0.78rem' };
+
   return (
-    <div className="app-layout" style={{display: 'flex', height: '100vh', background: '#080c14', color: 'white', overflow: 'hidden', fontFamily: '"Inter", sans-serif'}}>
-      <Sidebar active="test-cases" />
-      <div className="main-content" style={{flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', position: 'relative'}}>
-                 <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 2rem', background: 'rgba(8,12,20,0.7)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'sticky', top: 0, zIndex: 50 }}>
-          <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', width: '320px', transition: 'border 0.2s' }}>
-            <IconSearch />
-            <input type="text" placeholder="Search..." style={{ background: 'transparent', border: 'none', color: 'white', marginLeft: '0.75rem', outline: 'none', width: '100%', fontSize: '0.9rem' }} />
-            <div style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>Ctrl K</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
-            <span style={{ color: '#3b82f6', cursor: 'pointer', transition: 'color 0.2s' }}>Workspace</span>
-            <span style={{ color: '#94a3b8', cursor: 'pointer', transition: 'color 0.2s' }}>Project Settings</span>
-            <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)' }} />
-            <div style={{ position: 'relative', cursor: 'pointer', color: '#94a3b8' }}>
-              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-              <div style={{ position: 'absolute', top: -2, right: -2, width: 6, height: 6, background: '#ef4444', borderRadius: '50%' }} />
-            </div>
-            <img src="https://i.pravatar.cc/150?u=current_user" alt="User" style={{ width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)' }} />
-          </div>
-        </header>
+    <div style={{ display:'flex',height:'100vh',background:'#080c14',color:'white',overflow:'hidden' }}>
+      <Sidebar active="test-cases"/>
 
-         <div className="page-content fade-in" style={{padding: '2rem', maxWidth: '1200px'}}>
-            <div className="page-header-row" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem'}}>
-                 <div className="header-text">
-                    <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem'}}>
-                       <span style={{background: 'rgba(96,165,250,0.15)', color: '#60a5fa', padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.05em'}}>MODULE 05</span>
-                       <span style={{color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase'}}>/ Authentication Suite</span>
+      <div style={{ flex:1,display:'flex',flexDirection:'column',overflow:'hidden' }}>
+        
+        <Header searchPlaceholder="Search test cases..." />
+
+        <div style={{ padding:'1.25rem 2rem 0',flexShrink:0 }}>
+          <h1 style={{ fontSize:'1.75rem',fontWeight:700,margin:'0 0 4px' }}>Test Case Specification Engine</h1>
+          <p style={{ color:'#64748b',margin:0,fontSize:'0.88rem' }}>Atomic, executable test definitions derived from scenarios using AI precision engineering.</p>
+        </div>
+
+        <div style={{ flex:1,display:'grid',gridTemplateColumns:'268px 1fr 248px',gap:'1rem',padding:'1rem 2rem 0',overflow:'hidden' }}>
+          
+          {/* LEFT PANEL */}
+          <div style={{ display:'flex',flexDirection:'column',gap:'0.75rem',overflowY:'auto',paddingBottom:'4rem' }}>
+            <div style={card}>
+              <div style={{ padding:'0.9rem 1.1rem',borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize:'0.7rem',fontWeight:700,color:'#64748b' }}>SOURCE CONTEXT</span>
+              </div>
+              <div style={{ padding:'1rem' }}>
+                <div style={{ fontSize:'1.1rem',fontWeight:800,color:'#a78bfa' }}>{activeScenarios.length}</div>
+                <div style={{ fontSize:'0.65rem',color:'#64748b' }}>Active Scenarios</div>
+                <button onClick={handleGenerate} disabled={generating} style={{ width:'100%',marginTop:'1rem',background:'linear-gradient(135deg,#60a5fa,#3b82f6)',border:'none',padding:'0.75rem',borderRadius:'8px',color:'white',fontWeight:700,cursor:'pointer' }}>
+                  {generating ? 'Generating...' : 'Generate Test Cases'}
+                </button>
+              </div>
+            </div>
+            {/* AI Insight */}
+            <div style={{ background:'rgba(59,130,246,0.07)',border:'1px solid rgba(59,130,246,0.2)',borderRadius:'10px',padding:'1rem 1.1rem' }}>
+              <IconSparkles/><div style={{ fontSize:'0.7rem',fontWeight:700,color:'#60a5fa',marginTop:'4px' }}>AI INSIGHT</div>
+              <p style={{ fontSize:'0.76rem',color:'#93c5fd',lineHeight:1.5 }}>{cases.length} cases cover {scenarioCovPct}% of scenarios. {autoReadyPct}% are ready for automation.</p>
+            </div>
+          </div>
+
+          {/* CENTER PANEL */}
+          <div style={{ display:'flex',flexDirection:'column',overflow:'hidden' }}>
+            <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.85rem' }}>
+               <h2 style={{ fontSize:'1.1rem',fontWeight:700,margin:0 }}>Specification Artifacts</h2>
+               <div style={{ display:'flex',gap:'6px' }}>
+                 <button onClick={selectAll} style={btn('#60a5fa')}>Select All</button>
+                 <button onClick={clearAll} style={btn('#64748b')}>Clear</button>
+               </div>
+            </div>
+
+            <div style={{ display:'flex',gap:'8px',marginBottom:'0.75rem' }}>
+               <div style={{ flex:1,display:'flex',alignItems:'center',...inp }}><IconSearch/><input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="Search..." style={{ background:'transparent',border:'none',color:'white',marginLeft:'6px',outline:'none',width:'100%' }}/></div>
+               <select value={filterPrio} onChange={e=>setFilterPrio(e.target.value)} style={{ ...inp,width:'120px' }}><option value="All">All Priority</option>{['Critical','High','Medium','Low'].map(p=><option key={p}>{p}</option>)}</select>
+               <select value={filterType} onChange={e=>setFilterType(e.target.value)} style={{ ...inp,width:'120px' }}><option value="All">All Types</option>{testTypes.map(t=><option key={t}>{t}</option>)}</select>
+            </div>
+
+            <div style={{ flex:1,overflowY:'auto',paddingBottom:'5rem',display:'flex',flexDirection:'column',gap:'0.65rem' }}>
+              {generating && <div style={{ border:'1px dashed #3b82f6',padding:'2rem',borderRadius:'12px',textAlign:'center',color:'#60a5fa' }}>AI is decomposing scenarios...</div>}
+              {visible.map(tc => {
+                const isSelected = selected.has(tc.id);
+                const isExpanded = expanded === tc.id;
+                return (
+                  <div key={tc.id} style={{ ...card,border:`1px solid ${isSelected?'rgba(59,130,246,0.5)':'rgba(255,255,255,0.07)'}`,background:isSelected?'rgba(15,23,55,0.8)':'rgba(15,23,42,0.7)' }}>
+                    <div style={{ display:'flex',padding:'1rem',cursor:'pointer',alignItems:'center' }} onClick={()=>toggleSelect(tc.id)}>
+                      <div style={{ width:'18px',height:'18px',border:'2px solid rgba(255,255,255,0.2)',borderRadius:'5px',background:isSelected?'#3b82f6':'transparent',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center' }}>{isSelected&&<Ic.Check/>}</div>
+                      <div style={{ flex:1,marginLeft:'12px' }}>
+                        <div style={{ display:'flex',gap:'6px',marginBottom:'4px' }}><span style={tag('#60a5fa')}>{tc.id}</span><span style={tag(PRIO_C[tc.priority]||'#64748b')}>{tc.priority}</span></div>
+                        <div style={{ fontWeight:600 }}>{tc.title}</div>
+                      </div>
+                      <button onClick={(e)=>{e.stopPropagation();setExpanded(isExpanded?null:tc.id)}} style={btn('#94a3b8')}>{isExpanded?'Hide':'Steps'}</button>
                     </div>
-                    <h1 style={{fontSize: '2.2rem', margin: '0 0 0.5rem 0', fontWeight: 700}}>Test Case Specifications</h1>
-                    <p style={{color: '#9ca3af', fontSize: '1rem', margin: 0, maxWidth: '650px', lineHeight: 1.5}}>Refine generated test cases. Review steps, expected results, and set execution priorities before finalizing automation scripts.</p>
-                 </div>
-                 <div className="header-actions" style={{display: 'flex', gap: '1rem', marginTop: '1.5rem'}}>
-                    <button style={{background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '0.6rem 1.25rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'background 0.2s'}}>
-                       <IconDownload /> Export PDF
-                    </button>
-                    <button onClick={() => handleNavigation('/code-gen')} style={{background: 'linear-gradient(135deg, #60a5fa, #3b82f6)', border: 'none', color: 'white', padding: '0.6rem 1.25rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 4px 14px 0 rgba(96, 165, 250, 0.39)'}}>
-                       <IconSparkles /> Generate Automation Code
-                    </button>
-                 </div>
+                    {isExpanded && (
+                      <div style={{ padding:'0 1rem 1rem',borderTop:'1px solid rgba(255,255,255,0.05)',marginTop:'0.5rem' }}>
+                        <div style={{ fontSize:'0.75rem',color:'#64748b',marginTop:'1rem' }}><strong>PRECONDITIONS:</strong> {tc.preconditions}</div>
+                        <div style={{ marginTop:'1rem',background:'rgba(0,0,0,0.2)',borderRadius:'8px',overflow:'hidden' }}>
+                           {tc.steps?.map((s,i)=>(
+                             <div key={i} style={{ display:'grid',gridTemplateColumns:'40px 1fr 1fr',padding:'8px 12px',borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
+                               <span style={{ color:'#60a5fa',fontWeight:700 }}>{i+1}</span>
+                               <span style={{ fontSize:'0.82rem' }}>{s.action}</span>
+                               <span style={{ fontSize:'0.82rem',color:'#10b981' }}>{s.expected}</span>
+                             </div>
+                           ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
+          </div>
 
-            <div className="summary-cards" style={{display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr)', gap: '1.5rem', marginBottom: '2rem'}}>
-               <div className="summary-card glass" style={{background: 'rgba(30,41,59,0.5)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', padding: '1.5rem'}}>
-                  <div className="label" style={{fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.05em', color: '#9ca3af', marginBottom: '0.5rem', textTransform: 'uppercase'}}>TOTAL CASES</div>
-                  <div style={{display: 'flex', alignItems: 'baseline', gap: '12px'}}>
-                     <span style={{fontSize: '2.5rem', fontWeight: 700, lineHeight: 1}}>42</span>
-                     <span style={{color: '#10b981', fontSize: '0.75rem', fontWeight: 600}}>+12 from last scan</span>
-                  </div>
-               </div>
-               <div className="summary-card glass" style={{background: 'rgba(30,41,59,0.5)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', padding: '1.5rem'}}>
-                  <div className="label" style={{fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.05em', color: '#9ca3af', marginBottom: '0.5rem', textTransform: 'uppercase'}}>HIGH PRIORITY</div>
-                  <div style={{display: 'flex', alignItems: 'baseline', gap: '12px'}}>
-                     <span style={{fontSize: '2.5rem', fontWeight: 700, lineHeight: 1}}>18</span>
-                     <span style={{color: '#94a3b8', fontSize: '0.75rem', maxWidth: '100px', lineHeight: 1.3}}>Requires immediate attention</span>
-                  </div>
-               </div>
-               <div className="summary-card glass" style={{background: 'rgba(30,41,59,0.5)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                  <div>
-                     <div className="label" style={{fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.05em', color: '#60a5fa', marginBottom: '0.5rem', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px'}}>AI RECOMMENDATION</div>
-                     <p style={{margin: 0, fontSize: '0.95rem', fontWeight: 500, color: '#f8fafc'}}>5 Duplicate scenarios detected in 'Checkout Flow'</p>
-                  </div>
-                  <button style={{background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer'}}>Review</button>
+          {/* RIGHT PANEL */}
+          <div style={{ display:'flex',flexDirection:'column',gap:'0.75rem',overflowY:'auto' }}>
+            <div style={card}>
+               <div style={{ padding:'0.75rem 1rem',borderBottom:'1px solid rgba(255,255,255,0.05)',fontSize:'0.66rem',fontWeight:700,color:'#64748b' }}>COVERAGE</div>
+               <div style={{ padding:'1.5rem 1rem',textAlign:'center' }}>
+                  <div style={{ fontSize:'2rem',fontWeight:800,color:'#10b981' }}>{autoReadyPct}%</div>
+                  <div style={{ fontSize:'0.7rem',color:'#64748b' }}>Automation Ready</div>
                </div>
             </div>
-
-            <div className="cases-table glass" style={{background: 'rgba(30,41,59,0.5)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden', marginBottom: '2rem', position: 'relative'}}>
-               <div className="table-controls" style={{display: 'flex', justifyContent: 'space-between', padding: '1rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(15,23,42,0.4)', alignItems: 'center'}}>
-                  <div style={{display: 'flex', gap: '1.5rem', alignItems: 'center'}}>
-                     <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: 'white'}}>
-                        <input type="checkbox" style={{accentColor: '#3b82f6', width: '16px', height: '16px'}} /> Select All
-                     </label>
-                     <button style={{background: 'transparent', border: 'none', color: '#9ca3af', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}><IconTrash /> Bulk Delete</button>
-                     <button style={{background: 'transparent', border: 'none', color: '#9ca3af', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}><IconPlan /> Move to Suite</button>
-                  </div>
-                  <div style={{fontSize: '0.85rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '8px'}}>
-                     Sort by: <select style={{background: 'rgba(15,23,42,0.8)', color: 'white', border: '1px solid rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '4px', outline: 'none'}}><option>Priority (Highest)</option></select>
-                  </div>
-               </div>
-               
-               <div className="table-header" style={{display: 'grid', gridTemplateColumns: '40px 60px 2fr 2fr 100px 150px 40px', padding: '1rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', letterSpacing: '0.05em'}}>
-                  <span></span><span>ID</span><span>TEST DESCRIPTION & STEPS</span><span>EXPECTED RESULT</span><span>PRIORITY</span><span>LABELS</span><span>ACTIONS</span>
-               </div>
-               
-               <div className="cases-list">
-                  {[
-                    { id: 'TC-801', title: 'Validate Multi-factor Auth Token', steps: ['Navigate to login page', 'Enter valid user credentials', 'Submit secondary MFA token "000000"'], expected: 'System should display \'Invalid Token\' error message and remain on the verification screen without locking account.', priority: 'HIGH', prioColor: '#ef4444', labels: ['Security', 'Auth'], checked: true },
-                    { id: 'TC-802', title: 'Password Complexity - Minimum Length', steps: ['Access \'Change Password\' profile settings', 'Input password with 5 characters'], expected: 'Validation error must trigger: \'Password must be at least 8 characters\'. Save button remains disabled.', priority: 'MEDIUM', prioColor: '#f97316', labels: ['UI/UX'], checked: false },
-                    { id: 'TC-803', title: 'Remember Me Persistence', steps: ['Log in with \'Remember Me\' enabled', 'Close browser tab and reopen'], expected: 'User should be automatically authenticated and redirected to Dashboard without login prompt.', priority: 'LOW', prioColor: '#3b82f6', labels: ['Regression'], checked: true }
-                  ].map(tc => (
-                    <div key={tc.id} className="case-row" style={{display: 'grid', gridTemplateColumns: '40px 60px 2fr 2fr 100px 150px 40px', padding: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', background: tc.checked ? 'rgba(255,255,255,0.02)' : 'transparent', alignItems: 'start'}}>
-                       <div><input type="checkbox" defaultChecked={tc.checked} style={{accentColor: '#3b82f6', width: '16px', height: '16px'}} /></div>
-                       <div style={{fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600}}>{tc.id.replace('-', '-\n')}</div>
-                       <div style={{paddingRight: '2rem'}}>
-                          <h4 style={{margin: '0 0 0.5rem 0', fontSize: '0.95rem', color: 'white', fontWeight: 600}}>{tc.title}</h4>
-                          <ol style={{margin: 0, paddingLeft: '1.25rem', color: '#9ca3af', fontSize: '0.85rem', lineHeight: 1.5}}>
-                             {tc.steps.map((step, i) => <li key={i}>{step}</li>)}
-                          </ol>
-                       </div>
-                       <div style={{fontSize: '0.85rem', color: '#9ca3af', lineHeight: 1.5, paddingRight: '2rem'}}>{tc.expected}</div>
-                       <div><span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px', fontSize: '0.65rem', fontWeight: 700, color: tc.prioColor}}>● {tc.priority}</span></div>
-                       <div style={{display: 'flex', flexWrap: 'wrap', gap: '4px'}}>
-                          {tc.labels.map(l => <span key={l} style={{background: 'rgba(255,255,255,0.1)', color: '#94a3b8', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem'}}>{l}</span>)}
-                       </div>
-                       <div style={{color: '#64748b', cursor: 'pointer', textAlign: 'right', fontSize: '1.2rem', marginTop: '-4px'}}>⋮</div>
+            <div style={card}>
+               <div style={{ padding:'0.75rem 1rem',borderBottom:'1px solid rgba(255,255,255,0.05)',fontSize:'0.66rem',fontWeight:700,color:'#64748b' }}>PRIORITY MATRIX</div>
+               <div style={{ padding:'1rem' }}>
+                  {Object.entries(prioCounts).map(([p,c])=>(
+                    <div key={p} style={{ fontSize:'0.73rem',marginBottom:'6px',display:'flex',justifyContent:'space-between' }}>
+                      <span style={{ color:PRIO_C[p]||'white' }}>{p}</span><span>{c}</span>
                     </div>
                   ))}
                </div>
+            </div>
+          </div>
 
-               <div style={{padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: '#9ca3af', background: 'rgba(15,23,42,0.2)'}}>
-                  <span>Showing <strong>1-10</strong> of <strong>42</strong> test cases</span>
-                  <div className="pagination" style={{display: 'flex', gap: '4px'}}>
-                     <button style={{background: 'transparent', border: 'none', color: '#9ca3af', width: '28px', height: '28px', cursor: 'pointer'}}>&lt;</button>
-                     <button style={{background: '#e2e8f0', color: '#0f172a', border: 'none', width: '28px', height: '28px', borderRadius: '4px', fontWeight: 600, cursor: 'pointer'}}>1</button>
-                     <button style={{background: 'transparent', border: 'none', color: '#9ca3af', width: '28px', height: '28px', cursor: 'pointer'}}>2</button>
-                     <button style={{background: 'transparent', border: 'none', color: '#9ca3af', width: '28px', height: '28px', cursor: 'pointer'}}>3</button>
-                     <button style={{background: 'transparent', border: 'none', color: '#9ca3af', width: '28px', height: '28px', cursor: 'pointer'}}>&gt;</button>
-                  </div>
-               </div>
+        </div>
 
-               <button style={{position: 'absolute', bottom: '1.5rem', right: '1.5rem', width: '48px', height: '48px', borderRadius: '50%', background: '#3b82f6', color: 'white', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5)'}}>
-                  <IconLightning />
+        {generated && cases.length > 0 && (
+          <div style={{ position:'absolute',bottom:'1.25rem',left:'284px',right:'1rem',background:'rgba(10,16,32,0.97)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:'14px',padding:'0.85rem 1.5rem',display:'flex',alignItems:'center',justifyContent:'space-between',backdropFilter:'blur(12px)',zIndex:100 }}>
+            <div style={{ display:'flex',gap:'1.5rem',alignItems:'center' }}>
+               <div><strong>{selected.size}</strong> cases selected</div>
+               <div style={{ width:'1px',height:'20px',background:'rgba(255,255,255,0.1)' }} />
+               <button onClick={handleSyncJira} disabled={syncing} style={{ background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',color:'white',padding:'0.6rem 1.2rem',borderRadius:'9px',fontSize:'0.82rem',fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:'8px' }}>
+                  {syncing ? <Ic.Loader/> : <Ic.Refresh/>} {syncing ? 'Syncing...' : 'Sync to Jira'}
                </button>
             </div>
-
-            <div className="cases-footer-row" style={{display: 'grid', gridTemplateColumns: 'minmax(0, 5fr) minmax(0, 3fr)', gap: '2rem'}}>
-               <div className="insights-panel glass" style={{background: 'rgba(30,41,59,0.5)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', padding: '1.5rem'}}>
-                  <div style={{display: 'flex', gap: '12px', marginBottom: '1.5rem'}}>
-                     <div style={{background: 'rgba(255,255,255,0.1)', width: '36px', height: '36px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fbbf24', flexShrink: 0}}><IconSparkles /></div>
-                     <div>
-                        <h3 style={{fontSize: '1rem', fontWeight: 600, margin: '0 0 0.25rem 0'}}>IntelliInsights: Coverage Gap</h3>
-                        <p style={{fontSize: '0.85rem', color: '#9ca3af', margin: 0}}>AI detected missing edge cases based on codebase analysis.</p>
-                     </div>
-                  </div>
-                  
-                  <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                     <div style={{background: 'rgba(30,58,138,0.2)', borderLeft: '4px solid #60a5fa', padding: '1.25rem', borderRadius: '0 8px 8px 0'}}>
-                        <h4 style={{fontSize: '0.9rem', color: '#93c5fd', margin: '0 0 0.5rem 0', fontWeight: 600}}>Missing: Password Recovery via SMS</h4>
-                        <p style={{fontSize: '0.85rem', color: '#e2e8f0', margin: '0 0 1rem 0', lineHeight: 1.4}}>Users might attempt recovery via mobile if email fails. No test coverage found for SMS gateway response.</p>
-                        <button style={{background: 'transparent', border: 'none', color: 'white', fontWeight: 600, fontSize: '0.85rem', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'}}>⊕ Generate this case</button>
-                     </div>
-                     <div style={{background: 'rgba(124,45,18,0.2)', borderLeft: '4px solid #fb923c', padding: '1.25rem', borderRadius: '0 8px 8px 0'}}>
-                        <h4 style={{fontSize: '0.9rem', color: '#fdba74', margin: '0 0 0.5rem 0', fontWeight: 600}}>Observation: Token Expiry</h4>
-                        <p style={{fontSize: '0.85rem', color: '#e2e8f0', margin: 0, lineHeight: 1.4}}>The current verification steps don't account for token TTL. Recommend adding a 'Stale Token' verification step.</p>
-                     </div>
-                  </div>
-               </div>
-
-               <div className="selection-card glass" style={{background: 'rgba(30,41,59,0.5)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', padding: '1.5rem', display: 'flex', flexDirection: 'column'}}>
-                  <h3 style={{fontSize: '1rem', fontWeight: 600, margin: '0 0 1.5rem 0'}}>Selection Summary</h3>
-                  <div style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem'}}>
-                     <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem'}}><span style={{color: '#9ca3af'}}>Selected Items</span><strong style={{color: 'white'}}>12 Cases</strong></div>
-                     <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem'}}><span style={{color: '#9ca3af'}}>Avg. Difficulty</span><strong style={{color: '#60a5fa'}}>Moderate</strong></div>
-                     <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem'}}><span style={{color: '#9ca3af'}}>Estimated Exec.</span><strong style={{color: 'white'}}>14.5 Minutes</strong></div>
-                  </div>
-                  <div style={{marginBottom: '2rem'}}>
-                     <div style={{fontSize: '0.7rem', color: '#64748b', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '1rem'}}>AUTOMATION READINESS</div>
-                     <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-                        <div style={{width: '40px', height: '40px', borderRadius: '50%', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#3b82f6', borderRightColor: '#3b82f6', borderBottomColor: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700}}>85%</div>
-                        <p style={{margin: 0, fontSize: '0.85rem', color: '#e2e8f0', flex: 1, lineHeight: 1.4}}>12 selected cases are ready for Cypress/Playwright conversion.</p>
-                     </div>
-                  </div>
-                  <button onClick={() => handleNavigation('/code-gen')} style={{width: '100%', marginTop: 'auto', background: '#3b82f6', border: 'none', padding: '0.85rem', borderRadius: '8px', color: 'white', fontWeight: 600, fontSize: '1rem', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', transition: 'background 0.2s'}}>Generate Automation Code ➔</button>
-               </div>
-            </div>
-
-            <div style={{position: 'fixed', bottom: '2rem', left: '18rem', background: 'rgba(30,41,59,0.8)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1rem', width: '220px'}}>
-               <div style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em', color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase'}}><span style={{color: '#10b981'}}>●</span> AI Engine Active</div>
-               <div style={{fontSize: '0.75rem', color: '#64748b'}}>Processing Model: GPT-4o-Turbo</div>
-            </div>
-         </div>
+            <button onClick={()=>handleNavigation('/code-gen')} style={{ background:'linear-gradient(135deg,#60a5fa,#3b82f6)',border:'none',padding:'0.65rem 1.5rem',borderRadius:'9px',color:'white',fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:'8px' }}>
+               Proceed to Code Generation <Ic.Send/>
+            </button>
+          </div>
+        )}
       </div>
+
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:.4}50%{opacity:.8}}`}</style>
     </div>
   );
 }

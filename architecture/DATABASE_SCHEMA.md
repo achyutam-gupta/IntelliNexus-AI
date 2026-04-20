@@ -1,4 +1,4 @@
-# IntelliPlan AI: Database Schema (PostgreSQL)
+# IntelliNexus AI: Database Schema (PostgreSQL)
 
 ## 1. Core Entities
 

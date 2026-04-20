@@ -27,7 +27,7 @@ export function Navbar() {
             <div className="absolute inset-0 rounded-xl animate-pulse-glow bg-primary/10" />
           </div>
           <span className="text-lg font-bold tracking-tight text-foreground">
-            IntelliPlan <span className="text-gradient-cyan">AI</span>
+            IntelliNexus <span className="text-gradient-cyan">AI</span>
           </span>
         </Link>
 

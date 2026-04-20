@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
-import { generateContentWithLLM, checkJiraConnection } from '../lib/llmGenerate';
+import { generateContentWithLLM, parseLLMJSON, checkJiraConnection } from '../lib/llmGenerate';
 import { IconSearch, IconSparkles } from '../components/Icons';
 import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
 import TestPlanTemplateRaw from '../templates/test_plan_spec.md?raw';
 
 /* ─── Inline SVGs ─── */
@@ -20,29 +21,8 @@ const Ic = {
   Dot:     (p)=><div style={{width:'6px',height:'6px',borderRadius:'50%',background:p.c,flexShrink:0}}/>,
 };
 
-/* ─── Story pool (Fallback Default) ─── */
-const STORY_POOL = [
-  { id:'US-402', title:'OAuth2 Implementation',    module:'Authentication',     priority:'Critical', pts:8,  risk:'High',   dep:true  },
-  { id:'US-403', title:'MFA OTP Verification',     module:'MFA',                priority:'Critical', pts:5,  risk:'High',   dep:true  },
-  { id:'US-405', title:'Real-time Data Sync',      module:'Dashboard',          priority:'High',     pts:13, risk:'Medium', dep:false },
-  { id:'US-407', title:'Session Auto-Refresh',     module:'Session Management', priority:'High',     pts:5,  risk:'Medium', dep:true  },
-];
 const PRIO_C = { Critical:'#ef4444', High:'#f97316', Medium:'#a78bfa', Low:'#64748b' };
 const RISK_C  = { High:'#ef4444', Medium:'#f59e0b', Low:'#10b981' };
-
-/* ─── Timeline phases ─── */
-const PHASES = [
-  { name:'Planning',       days:2, start:'May 01', color:'#475569' },
-  { name:'Test Design',    days:3, start:'May 03', color:'#3b82f6' },
-  { name:'Automation Prep',days:3, start:'May 06', color:'#a78bfa' },
-  { name:'Execution',      days:5, start:'May 09', color:'#10b981' },
-];
-
-/* ─── Resources ─── */
-const RESOURCES = [
-  { role:'QA Lead',           cap:100, color:'#60a5fa' },
-  { role:'Manual QA Engineer',cap:80,  color:'#10b981' },
-];
 
 /* ─── Section heading component ─── */
 function SectionHead({ num, label, accent = '#3b82f6', open, onToggle }) {
@@ -73,10 +53,18 @@ export default function TestPlan() {
   const location = useLocation();
 
   /* ── State & Session Persistence ── */
-  const initPool = location.state?.importedStories || JSON.parse(sessionStorage.getItem('tp_storyPool') || 'null') || STORY_POOL;
+  const initPool = location.state?.importedStories || JSON.parse(sessionStorage.getItem('tp_storyPool') || '[]');
 
   const [storyPool, setStoryPool] = useState(initPool);
-  const [selected, setSelected]   = useState(() => new Set(JSON.parse(sessionStorage.getItem('tp_selected') || 'null') || initPool.map(s => s.id)));
+  const [selected, setSelected]   = useState(() => new Set(JSON.parse(sessionStorage.getItem('tp_selected') || '[]')));
+  
+  // Storage Reset for Legacy Dummy Data
+  useEffect(() => {
+    if (storyPool.length === 4 && storyPool[0]?.id === 'US-402') {
+      setStoryPool([]);
+      sessionStorage.removeItem('tp_storyPool');
+    }
+  }, []);
   const [searchQ, setSearchQ]     = useState(() => sessionStorage.getItem('tp_searchQ') || '');
   const [filterMod, setFilterMod] = useState(() => sessionStorage.getItem('tp_filterMod') || 'All');
   const [filterPrio, setPrio]     = useState(() => sessionStorage.getItem('tp_filterPrio') || 'All');
@@ -165,19 +153,9 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
 }`;
 
       const llmResponse = await generateContentWithLLM(promptText);
-      if(!llmResponse) throw new Error("No response from LLM");
+      if(!llmResponse) throw new Error("No response from LLM engine.");
 
-      let cleanResponse = llmResponse.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
-      // Extract the JSON object
-      const startBrace = cleanResponse.indexOf('{');
-      const endBrace = cleanResponse.lastIndexOf('}');
-      if (startBrace !== -1 && endBrace !== -1) {
-        cleanResponse = cleanResponse.substring(startBrace, endBrace + 1);
-      }
-      // Fix trailing commas
-      cleanResponse = cleanResponse.replace(/,\s*([\]}])/g, '$1');
-      
-      const parsedData = JSON.parse(cleanResponse);
+      const parsedData = parseLLMJSON(llmResponse);
       setTpData(parsedData);
       setGenerated(true);
       toast.success('Test Plan generated successfully from template.');
@@ -188,6 +166,23 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
     }
 
     setGen(false); 
+  };
+
+  const handleExport = () => {
+    if (!tpData) return toast.error("No test plan data to export.");
+    const blob = new Blob([JSON.stringify(tpData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `test-plan-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Test Plan exported as JSON.");
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast.success("Link copied to clipboard!");
   };
 
   const toggleStory = (id) => setSelected(p => { const s=new Set(p); s.has(id)?s.delete(id):s.add(id); return s; });
@@ -220,26 +215,8 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
     <div style={{ display:'flex',height:'100vh',background:'#080c14',color:'white',overflow:'hidden' }}>
       <Sidebar active="test-plan"/>
 
-      <div style={{ flex:1,display:'flex',flexDirection:'column',overflow:'hidden' }}>
-
-        {/* ── Top Nav ── */}
-                <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 2rem', background: 'rgba(8,12,20,0.7)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'sticky', top: 0, zIndex: 50 }}>
-          <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', width: '320px', transition: 'border 0.2s' }}>
-            <IconSearch />
-            <input type="text" placeholder="Search..." style={{ background: 'transparent', border: 'none', color: 'white', marginLeft: '0.75rem', outline: 'none', width: '100%', fontSize: '0.9rem' }} />
-            <div style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>Ctrl K</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
-            <span style={{ color: '#3b82f6', cursor: 'pointer', transition: 'color 0.2s' }}>Workspace</span>
-            <span style={{ color: '#94a3b8', cursor: 'pointer', transition: 'color 0.2s' }}>Project Settings</span>
-            <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)' }} />
-            <div style={{ position: 'relative', cursor: 'pointer', color: '#94a3b8' }}>
-              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-              <div style={{ position: 'absolute', top: -2, right: -2, width: 6, height: 6, background: '#ef4444', borderRadius: '50%' }} />
-            </div>
-            <img src="https://i.pravatar.cc/150?u=current_user" alt="User" style={{ width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)' }} />
-          </div>
-        </header>
+      <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+        <Header searchPlaceholder="Search architecture..." />
 
         {/* ── Page Header ── */}
         <div style={{ padding:'1.25rem 2rem 0',flexShrink:0 }}>
@@ -345,12 +322,24 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
             {/* Plan header bar */}
             <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.85rem',flexShrink:0 }}>
               <div>
-                <h2 style={{ fontSize:'1.1rem',fontWeight:700,margin:'0 0 2px' }}>Test Plan: V4 Alpha Release</h2>
-                <p style={{ margin:0,fontSize:'0.75rem',color:'#475569' }}>Generated from {selected.size} user stories  •  Editable  •  <span style={{ color:'#60a5fa' }}>v1.2</span></p>
+                <h2 style={{ fontSize:'1.1rem',fontWeight:700,margin:'0 0 2px' }}>{tpData?.title || 'Test Plan: Awaiting Synthesis'}</h2>
+                <p style={{ margin:0,fontSize:'0.75rem',color:'#475569' }}>Generated from {selected.size} user stories  •  {generated ? 'Draft' : 'Not Started'}</p>
               </div>
               <div style={{ display:'flex',gap:'6px' }}>
                 {[['Save','#10b981',<Ic.Save/>],['Export','#60a5fa',<Ic.Export/>],['Share','#a78bfa',<Ic.Share/>],['Regen','#f97316',<Ic.Refresh/>]].map(([l,c,ic])=>(
-                  <button key={l} style={{ ...btn(c) }}>{ic}{l}</button>
+                  <button 
+                    key={l} 
+                    onClick={() => {
+                      if (l === 'Save') toast.success('Test Plan strategy synchronized.');
+                      if (l === 'Regen') handleGenerate();
+                      if (l === 'Export') handleExport();
+                      if (l === 'Share') handleShare();
+                    }} 
+                    disabled={generating}
+                    style={{ ...btn(c) }}
+                  >
+                    {ic}{l}
+                  </button>
                 ))}
               </div>
             </div>
@@ -377,7 +366,7 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
                   <div style={{ padding:'0.85rem 1.25rem' }}>
                     <SectionHead num="I" label="OBJECTIVE" open={open.obj} onToggle={()=>toggle('obj')}/>
                     {open.obj && <p style={{ margin:0,fontSize:'0.82rem',color:'#94a3b8',lineHeight:1.65,...inCard,padding:'0.85rem 1rem' }}>
-                      {tpData ? tpData.objective : 'Validate that the V4 Alpha Release delivers secure workflows and reliable features with acceptable quality and readiness as per ISTQB standards.'}
+                      {tpData ? tpData.objective : 'Neural engine awaiting scenario context to define objectives...'}
                     </p>}
                   </div>
                 </div>
@@ -390,19 +379,19 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
                       <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem' }}>
                         <div style={inCard}>
                           <div style={{ fontSize:'0.68rem',fontWeight:700,color:'#10b981',letterSpacing:'0.07em',marginBottom:'0.6rem' }}>✅ IN SCOPE</div>
-                          {(tpData?.inScope || ['OAuth2 login & token flows','MFA OTP verification paths','Real-time WebSocket sync']).map((t,i)=>(
+                          {(tpData?.inScope || []).length > 0 ? tpData.inScope.map((t,i)=>(
                             <div key={i} style={{ fontSize:'0.78rem',color:'#94a3b8',padding:'3px 0',borderBottom:'1px solid rgba(255,255,255,0.04)',display:'flex',gap:'7px' }}>
                               <span style={{ color:'#10b981' }}>→</span>{t}
                             </div>
-                          ))}
+                          )) : <div style={{ fontSize:'0.75rem', color:'#475569' }}>No scope identified.</div>}
                         </div>
                         <div style={inCard}>
                           <div style={{ fontSize:'0.68rem',fontWeight:700,color:'#ef4444',letterSpacing:'0.07em',marginBottom:'0.6rem' }}>🚫 OUT OF SCOPE</div>
-                          {(tpData?.outOfScope || ['Legacy IE / older browser support','Third-party vendor certification']).map((t,i)=>(
+                          {(tpData?.outOfScope || []).length > 0 ? tpData.outOfScope.map((t,i)=>(
                             <div key={i} style={{ fontSize:'0.78rem',color:'#94a3b8',padding:'3px 0',borderBottom:'1px solid rgba(255,255,255,0.04)',display:'flex',gap:'7px' }}>
                               <span style={{ color:'#ef4444' }}>✕</span>{t}
                             </div>
-                          ))}
+                          )) : <div style={{ fontSize:'0.75rem', color:'#475569' }}>No exclusions.</div>}
                         </div>
                       </div>
                     )}
@@ -415,15 +404,9 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
                     <SectionHead num="III" label="TEST STRATEGY" accent="#a78bfa" open={open.strat} onToggle={()=>toggle('strat')}/>
                     {open.strat && (
                       <div style={inCard}>
-                        {[
-                          { label:'Smoke Testing',         pct:20, color:'#60a5fa' },
-                          { label:'Functional Regression', pct:35, color:'#3b82f6' },
-                          { label:'API Validation',        pct:20, color:'#a78bfa' },
-                          { label:'Security Validation',   pct:15, color:'#ef4444' },
-                          { label:'Exploratory Testing',   pct:10, color:'#f59e0b' },
-                        ].map((r,i)=><Bar key={i} {...r}/>)}
+                        {(tpData?.strategy || []).length > 0 ? tpData.strategy.map((r,i)=><Bar key={i} {...r}/>) : <div style={{ fontSize:'0.75rem', color:'#475569' }}>Select stories and click generate to build strategy.</div>}
                         <p style={{ margin:'0.75rem 0 0',fontSize:'0.75rem',color:'#64748b',fontStyle:'italic',lineHeight:1.5 }}>
-                          Playwright for E2E automation · Postman for API contract validation · Parallel CI/CD execution enabled.
+                          Adaptive strategy derivation enabled based on ISTQB standards.
                         </p>
                       </div>
                     )}
@@ -532,7 +515,7 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
                     <SectionHead num="IX" label="RELEASE TIMELINE" accent="#f97316" open={open.timeline} onToggle={()=>toggle('timeline')}/>
                     {open.timeline && (
                       <div style={inCard}>
-                        {PHASES.map((p,i)=>(
+                        {(tpData?.phases || []).map((p,i)=>(
                           <div key={i} style={{ display:'flex',alignItems:'center',gap:'0.75rem',marginBottom:'0.6rem' }}>
                             <div style={{ width:'10px',height:'10px',borderRadius:'50%',background:p.color,flexShrink:0 }}/>
                             <span style={{ fontSize:'0.78rem',color:'#94a3b8',width:'120px',flexShrink:0 }}>{p.name}</span>
@@ -542,7 +525,7 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
                             <span style={{ fontSize:'0.7rem',color:'#475569',width:'90px',textAlign:'right' }}>{p.start} · {p.days}d</span>
                           </div>
                         ))}
-                        <div style={{ fontSize:'0.72rem',color:'#475569',marginTop:'0.5rem',textAlign:'right' }}>Total: 16 working days  •  May 1 – May 16, 2025</div>
+                        <div style={{ fontSize:'0.72rem',color:'#475569',marginTop:'0.5rem',textAlign:'right' }}>{tpData?.phases ? 'Release window mapped.' : 'Awaiting scope synthesis.'}</div>
                       </div>
                     )}
                   </div>
@@ -554,7 +537,7 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
                     <SectionHead num="X" label="RESOURCE PLAN" accent="#a78bfa" open={open.resources} onToggle={()=>toggle('resources')}/>
                     {open.resources && (
                       <div style={inCard}>
-                        {RESOURCES.map((r,i)=>(
+                        {(tpData?.resources || []).map((r,i)=>(
                           <div key={i} style={{ display:'flex',alignItems:'center',gap:'0.75rem',marginBottom:'0.65rem' }}>
                             <span style={{ fontSize:'0.78rem',color:'#94a3b8',width:'150px',flexShrink:0 }}>{r.role}</span>
                             <div style={{ flex:1,height:'6px',background:'rgba(255,255,255,0.06)',borderRadius:'3px',overflow:'hidden' }}>
@@ -563,7 +546,7 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
                             <span style={{ fontSize:'0.72rem',fontWeight:700,color:r.color,width:'36px',textAlign:'right' }}>{r.cap}%</span>
                           </div>
                         ))}
-                        <div style={{ fontSize:'0.7rem',color:'#475569',marginTop:'4px' }}>Capacity utilization across 16-day sprint window.</div>
+                        <div style={{ fontSize:'0.7rem',color:'#475569',marginTop:'4px' }}>Capacity utilization mapping awaiting deployment.</div>
                       </div>
                     )}
                   </div>
@@ -672,7 +655,15 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
               <div style={{ padding:'0.75rem 1rem',borderBottom:'1px solid rgba(255,255,255,0.05)',fontSize:'0.66rem',fontWeight:700,letterSpacing:'0.07em',color:'#64748b' }}>EXPORT</div>
               <div style={{ padding:'0.75rem 1rem',display:'flex',flexDirection:'column',gap:'0.45rem' }}>
                 {[['Export PDF','#60a5fa'],['Export DOCX','#10b981'],['Export XLSX','#10b981'],['Sync to Jira','#f97316'],['→ Test Scenarios','#a78bfa']].map(([l,c])=>(
-                  <button key={l} onClick={l.includes('Scenarios')?()=>navigate('/test-scenarios'):undefined} style={{ ...btn(c),justifyContent:'center',fontSize:'0.73rem' }}><Ic.Export/>{l}</button>
+                  <button 
+                    key={l} 
+                    onClick={() => {
+                      if (l.includes('Scenarios')) navigate('/test-scenarios');
+                      else if (l.includes('Export')) handleExport();
+                      else if (l.includes('Sync')) toast.info('Jira Sync is being initialized...');
+                    }} 
+                    style={{ ...btn(c),justifyContent:'center',fontSize:'0.73rem' }}
+                  ><Ic.Export/>{l}</button>
                 ))}
               </div>
             </div>
@@ -687,7 +678,7 @@ Translate the final validated plan STRICTLY into the JSON schema below. Do not w
               <span style={{ fontSize:'0.78rem',color:'#64748b' }}>{selected.size} stories · {totalPts} pts · 12 sections generated</span>
             </div>
             <div style={{ display:'flex',gap:'0.65rem' }}>
-              <button style={{ ...btn('#60a5fa'),fontSize:'0.78rem' }}><Ic.Export/> Export Plan</button>
+              <button onClick={handleExport} style={{ ...btn('#60a5fa'),fontSize:'0.78rem' }}><Ic.Export/> Export Plan</button>
               <button onClick={()=>navigate('/test-scenarios')} style={{ display:'flex',alignItems:'center',gap:'8px',background:'linear-gradient(135deg,#60a5fa,#3b82f6)',border:'none',padding:'0.65rem 1.5rem',borderRadius:'9px',color:'white',fontWeight:700,fontSize:'0.88rem',cursor:'pointer',boxShadow:'0 4px 14px rgba(59,130,246,0.35)' }}>
                 Proceed to Test Scenarios <Ic.Send/>
               </button>
