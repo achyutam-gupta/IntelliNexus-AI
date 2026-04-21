@@ -14,6 +14,7 @@ from backend.api.v1.planning import router as planning_router
 from backend.api.v1.scenarios import router as scenarios_router
 from backend.api.v1.analyzer import router as analyzer_router
 from backend.api.v1.integrations import router as integrations_router
+from backend.api.v1.auth import router as auth_router
 
 app = FastAPI(title="IntelliNexus AI API", version="1.0.0")
 
@@ -22,6 +23,7 @@ app.include_router(planning_router, prefix="/api/v1/planning", tags=["Planning"]
 app.include_router(scenarios_router, prefix="/api/v1/scenarios", tags=["Scenarios"])
 app.include_router(analyzer_router, prefix="/api/v1/analyzer", tags=["Analyzer"])
 app.include_router(integrations_router, prefix="/api/v1/integrations", tags=["Integrations"])
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
 
 # CORS Configuration
 app.add_middleware(

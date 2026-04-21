@@ -18,6 +18,20 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    // 🛡️ Auth Callback Handling
+    const urlParams = new URLSearchParams(window.location.search);
+    const authSuccess = urlParams.get('auth_success');
+    const token = urlParams.get('token');
+    const name = urlParams.get('name');
+
+    if (authSuccess === 'true' && token) {
+      sessionStorage.setItem('auth_token', token);
+      sessionStorage.setItem('user_name', name || 'User');
+      sessionStorage.removeItem('guestMode');
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     // 🛡️ Guest Guard
     if (sessionStorage.getItem('guestMode') === 'true') {
       navigate('/login');

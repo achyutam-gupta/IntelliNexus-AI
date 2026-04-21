@@ -52,8 +52,15 @@ export default function LoginPage() {
           <h2 style={{fontSize: '2rem', marginBottom: '0.5rem', color: 'white', fontWeight: 600}}>Welcome back</h2>
           <p className="subtext" style={{color: '#9ca3af', marginBottom: '2rem'}}>Enter your credentials to access your workspace.</p>
           
-          <div className="social-auth" style={{display: 'flex', gap: '1rem', marginBottom: '2rem'}}>
-            <button className="social-btn" style={{flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem', borderRadius: '8px', color: 'white', fontWeight: 500, cursor: 'pointer', transition: 'background 0.2s'}}>
+          <div className="social-auth" style={{display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+            <button 
+              onClick={() => {
+                const apiBase = window.location.origin === 'http://localhost:3000' ? 'http://localhost:8000' : '';
+                window.location.href = `${apiBase}/api/v1/auth/login/google`;
+              }}
+              className="social-btn" 
+              style={{flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem', borderRadius: '8px', color: 'white', fontWeight: 500, cursor: 'pointer', transition: 'background 0.2s'}}
+            >
               <img src="https://www.google.com/favicon.ico" alt="Google" width="18" /> Google
             </button>
             <button className="social-btn" style={{flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem', borderRadius: '8px', color: 'white', fontWeight: 500, cursor: 'pointer', transition: 'background 0.2s'}}>
